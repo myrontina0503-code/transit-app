@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>出門小幫手</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#12324a">
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--ink:#14212b;--sub:#5d6b76;--line:#dfe5ea;--brand:#12324a;--accent:#0b7f73;--warn:#a85b00;--halo:#f4f6f8}
+@media (prefers-color-scheme:dark){:root{--bg:#10171d;--card:#1a242c;--ink:#edf2f5;--sub:#9fafba;--line:#2e3b45;--brand:#0c222f;--accent:#4fd0c0;--warn:#f0b35e;--halo:#10171d}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;overflow:hidden}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+header{background:var(--brand);color:#fff;padding:calc(env(safe-area-inset-top) + 8px) 12px 10px;position:relative;z-index:5}
+#q{width:100%;height:42px;border:0;border-radius:10px;padding:0 14px;background:#fff;color:#14212b;outline:none}
+#hits{position:absolute;left:12px;right:12px;top:100%;background:var(--card);color:var(--ink);border-radius:0 0 10px 10px;box-shadow:0 8px 22px #0004;max-height:50vh;overflow:auto}
+#hits button{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:11px 14px;background:none;border:0;border-bottom:1px solid var(--line)}
+main{flex:1;position:relative;overflow:hidden;min-height:0}
+.view{position:absolute;inset:0;display:none}
+.view.on{display:block}
+#map{width:100%;height:100%;display:block;touch-action:none;background:var(--bg);user-select:none;-webkit-user-select:none}
+#map text{fill:var(--ink);paint-order:stroke;stroke:var(--halo);stroke-linejoin:round;pointer-events:none}
+#map .dim{opacity:.13}
+.mapbtns{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:8px}
+.mapbtns button{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:20px;box-shadow:0 2px 8px #0002}
+#trip{position:absolute;left:12px;top:12px;right:68px;display:none;gap:6px;flex-wrap:wrap}
+#trip.on{display:flex}
+.pill{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:14px;box-shadow:0 2px 8px #0002}
+nav{display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:6}
+nav button{flex:1;height:54px;border:0;background:none;color:var(--sub);font-size:14px;font-weight:600}
+nav button.on{color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
+#sheet{position:absolute;left:0;right:0;bottom:0;max-height:66%;background:var(--card);border-radius:18px 18px 0 0;overflow:auto;transform:translateY(105%);transition:transform .2s;padding:6px 16px 18px;z-index:4;-webkit-overflow-scrolling:touch}
+#sheet.on{transform:none;box-shadow:0 -6px 24px #0003}
+.sheethead{display:flex;align-items:flex-start;gap:10px;position:sticky;top:-6px;background:var(--card);padding:10px 0 8px;z-index:1}
+.sheethead h2{margin:0;font-size:22px;flex:1;line-height:1.25}
+.x{width:36px;height:36px;border-radius:50%;border:0;background:var(--bg);font-size:18px;flex:none}
+.chip{display:inline-block;color:#fff;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:700;margin-right:4px;white-space:nowrap}
+.note{color:var(--sub);font-size:13px;margin:4px 0 10px}
+.note.warn{color:var(--warn)}
+.dir{border-top:1px solid var(--line);padding:10px 0}
+.dir h3{margin:0 0 6px;font-size:15px}
+.trains{display:flex;flex-wrap:wrap;gap:6px}
+.train{background:var(--bg);border-radius:8px;padding:5px 9px;font-size:14px}
+.train b{font-size:18px;font-variant-numeric:tabular-nums}
+.train small{color:var(--sub)}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 4px}
+.btn{min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--bg);font-weight:600;padding:8px 10px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+@media (prefers-color-scheme:dark){.btn.primary{color:#07211e}}
+.wide{grid-column:1/-1;width:100%}
+.leg{border-left:5px solid;padding:2px 0 2px 12px;margin:10px 0}
+.leg b{display:block}
+.leg ol{margin:6px 0 0;padding:0;list-style:none;color:var(--sub);font-size:14px}
+.leg li{display:flex;justify-content:space-between;padding:2px 0}
+.sum{font-size:20px;font-weight:700;margin:2px 0}
+.page{height:100%;overflow:auto;padding:14px 16px 24px;max-width:640px;margin:0 auto}
+.page h2{margin:4px 0 10px;font-size:22px}
+.bike{display:flex;justify-content:space-between;gap:12px;align-items:center;border-top:1px solid var(--line);padding:10px 0}
+.bike .nm{font-weight:600}
+.bike .ct{text-align:right;flex:none;font-size:13px;color:var(--sub)}
+.bike .ct b{display:block;font-size:22px;color:var(--ink);font-variant-numeric:tabular-nums}
+.new{background:var(--warn);color:#fff;font-size:11px;border-radius:5px;padding:1px 5px;margin-left:5px;font-weight:700}
+@media (prefers-color-scheme:dark){.new{color:#2a1800}}
+.alert{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:14px}
+.link{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px;text-decoration:none;color:var(--ink)}
+.link b{display:block;font-size:17px}
+.link span{color:var(--sub);font-size:14px}
+.foot{color:var(--sub);font-size:12px;margin-top:18px}
+label.tog{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);padding:6px 0}
+label.tog input{width:20px;height:20px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <input id="q" type="search" placeholder="搜尋車站,例如:中山、機場第二航廈" autocomplete="off" aria-label="搜尋車站">
+    <div id="hits" hidden></div>
+  </header>
+  <main>
+    <section id="v-map" class="view on">
+      <svg id="map" aria-label="捷運路線圖"><g id="world"></g></svg>
+      <div id="trip"></div>
+      <div class="mapbtns">
+        <button id="zin" aria-label="放大">+</button>
+        <button id="zout" aria-label="縮小">−</button>
+        <button id="loc" aria-label="找最近的車站">◎</button>
+      </div>
+      <div id="sheet" role="dialog" aria-label="車站資訊"></div>
+    </section>
+    <section id="v-bike" class="view"><div class="page" id="bikepage"></div></section>
+    <section id="v-bus" class="view"><div class="page">
+      <h2>公車即時動態</h2>
+      <p class="note">點選後開啟官方網頁查詢。</p>
+      <a class="link" href="https://ebus.gov.taipei/" target="_blank" rel="noopener"><b>臺北市公車動態</b><span>台北、新北路線</span></a>
+      <a class="link" href="https://ebus.tycg.gov.tw/ebus" target="_blank" rel="noopener"><b>桃園市公車動態</b><span>桃園路線</span></a>
+    </div></section>
+  </main>
+  <nav>
+    <button data-v="map" class="on">路線圖</button>
+    <button data-v="bike">YouBike</button>
+    <button data-v="bus">公車</button>
+  </nav>
+</div>
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+const SVGNS = 'http://www.w3.org/2000/svg';
+const SERVICE_START = 240; // 凌晨四點前算前一營運日
+const TRANSFER_SEC = 300;
+let D, groups = {}, nodes = {}, adj = {}, sel = null, from = null, to = null, path = null;
+
+/* ---------- 資料 ---------- */
+function prepare() {
+  for (const [id, s] of Object.entries(D.stations)) (groups[s.n] = groups[s.n] || []).push(id);
+  const cx = 121.517, cy = 25.046, kx = Math.cos(cy * Math.PI / 180) * 111, ky = 111;
+  for (const [name, ids] of Object.entries(groups)) {
+    const lon = ids.reduce((a, i) => a + D.stations[i].x, 0) / ids.length;
+    const lat = ids.reduce((a, i) => a + D.stations[i].y, 0) / ids.length;
+    const dx = (lon - cx) * kx, dy = (cy - lat) * ky, r = Math.hypot(dx, dy) || 1;
+    const rr = Math.pow(r, .52) * 62; // 市中心放大、郊區壓縮
+    nodes[name] = { name, ids, x: dx / r * rr, y: dy / r * rr * 1.35, nb: [] }; // 直向手機拉高一些
+  }
+  for (const id in D.stations) adj[id] = [];
+  for (const [a, b, s] of D.edges) {
+    adj[a].push([b, s]); adj[b].push([a, s]);
+    const A = nodes[D.stations[a].n], B = nodes[D.stations[b].n];
+    A.nb.push(B); B.nb.push(A);
+  }
+  for (const ids of Object.values(groups)) for (const a of ids) for (const b of ids)
+    if (a !== b) adj[a].push([b, TRANSFER_SEC]);
+}
+
+/* ---------- 時刻 ---------- */
+function clock() {
+  const n = new Date(); let m = n.getHours() * 60 + n.getMinutes(), day = n.getDay();
+  if (m < SERVICE_START) { m += 1440; day = (day + 6) % 7; }
+  return { m, day, sec: n.getSeconds() };
+}
+function holidayOn() {
+  const n = new Date(), k = n.getFullYear() + '-' + (n.getMonth() + 1) + '-' + n.getDate();
+  return store.get('holiday', '') === k;
+}
+function dayTags(day) {
+  if (holidayOn() || day === 0) return ['su', 'h', 'd'];
+  return day === 6 ? ['sa', 'h', 'd'] : ['w', 'd'];
+}
+function fmt(m) { m %= 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+function expand(item) {
+  let t = 0; const xs = new Set(item.x || []);
+  return item.t.map((d, i) => { t += d; return { m: t, ex: xs.has(i) }; });
+}
+function nextTrains(sid) {
+  const tt = D.tt[sid]; if (!tt) return [];
+  const { m, day } = clock(), tag = dayTags(day).find(t => tt[t]);
+  if (!tag) return [];
+  const dirs = {};
+  for (const it of tt[tag]) {
+    const g = dirs[it.r] = dirs[it.r] || { all: [], count: {} };
+    const times = expand(it);
+    g.count[it.d] = (g.count[it.d] || 0) + times.length;
+    for (const t of times) if (t.m >= m) g.all.push({ ...t, d: it.d });
+  }
+  return Object.values(dirs).map(g => {
+    g.all.sort((a, b) => a.m - b.m);
+    const head = Object.entries(g.count).sort((a, b) => b[1] - a[1])[0][0];
+    return { head, list: g.all.slice(0, 4) };
+  });
+}
+function headway(line) {
+  const f = D.lines[line].fq, { m, day } = clock();
+  const q = dayTags(day).map(t => f[t]).find(Boolean) || f.w || f.h; if (!q) return null;
+  const toM = s => { const [h, mi] = s.split(':').map(Number); return h * 60 + mi; };
+  for (const [a, b, lo, hi] of q.hw) {
+    let s = toM(a), e = toM(b); if (e <= s) e += 1440;
+    if (m >= s && m < e) return lo === hi ? `約 ${lo} 分鐘一班` : `約 ${lo}–${hi} 分鐘一班`;
+  }
+  return '目前非營運時間';
+}
+
+/* ---------- 地圖 ---------- */
+const view = { k: 1, x: 0, y: 0 };
+const svg = $('#map'), world = $('#world');
+const dots = [], labels = [];
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  parent.appendChild(e); return e;
+}
+function drawMap() {
+  const gl = el('g', { id: 'lines' }, world), gd = el('g', {}, world), gt = el('g', {}, world);
+  for (const [a, b] of D.edges) {
+    const A = nodes[D.stations[a].n], B = nodes[D.stations[b].n];
+    const ln = el('line', { x1: A.x, y1: A.y, x2: B.x, y2: B.y, stroke: D.lines[D.stations[a].l].c, 'stroke-linecap': 'round', 'vector-effect': 'non-scaling-stroke', 'stroke-width': 4 }, gl);
+    ln.dataset.e = a + '|' + b;
+  }
+  for (const n of Object.values(nodes)) {
+    const inter = n.ids.length > 1, term = new Set(n.nb).size === 1;
+    const c = el('circle', { cx: n.x, cy: n.y, fill: inter ? '#fff' : D.lines[D.stations[n.ids[0]].l].c, stroke: inter ? '#14212b' : '#fff', 'vector-effect': 'non-scaling-stroke', 'stroke-width': inter ? 2 : 1 }, gd);
+    c.dataset.n = n.name; dots.push({ c, inter, n });
+    let vx = 0, vy = 0;
+    for (const b of n.nb) { const l = Math.hypot(b.x - n.x, b.y - n.y) || 1; vx += Math.abs(b.x - n.x) / l; vy += Math.abs(b.y - n.y) / l; }
+    const t = el('text', {}, gt); t.textContent = n.name;
+    labels.push({ t, n, inter, term, top: vx > vy });
+  }
+  fit();
+}
+function fit() {
+  const xs = Object.values(nodes).map(n => n.x), ys = Object.values(nodes).map(n => n.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const w = svg.clientWidth, h = svg.clientHeight;
+  view.k = Math.min((w - 40) / (x1 - x0), (h - 60) / (y1 - y0));
+  view.x = w / 2 - (x0 + x1) / 2 * view.k; view.y = h / 2 - (y0 + y1) / 2 * view.k;
+  view.min = view.k * .8; view.fit = view.k;
+  apply();
+}
+let queued = false;
+function apply() {
+  if (queued) return; queued = true;
+  requestAnimationFrame(() => {
+    queued = false;
+    const { k, x, y } = view, z = k / view.fit;
+    world.setAttribute('transform', `translate(${x} ${y}) scale(${k})`);
+    const u = 1 / k, fs = Math.min(15, 10.5 + z * .8) * u;
+    for (const d of dots) d.c.setAttribute('r', (d.inter ? 6 : 4) * u);
+    // 字疊在一起時,依重要性留下一個
+    const rank = l => isOn(l.n.name) ? 0 : l.inter ? 1 : l.term ? 2 : 3;
+    const placed = [], px = fs * k;
+    for (const l of [...labels].sort((a, b) => rank(a) - rank(b))) {
+      const w = l.n.name.length * px + 4, sx = l.n.x * k + x, sy = l.n.y * k + y;
+      const box = l.top ? [sx - w / 2, sy - 9 - px, sx + w / 2, sy - 7] : [sx + 7, sy - px / 2 - 1, sx + 7 + w, sy + px / 2 + 1];
+      const show = rank(l) === 0 || !placed.some(b => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1]);
+      l.t.style.display = show ? '' : 'none';
+      if (!show) continue;
+      placed.push(box);
+      l.t.setAttribute('font-size', fs); l.t.setAttribute('stroke-width', 3 * u);
+      l.t.setAttribute('font-weight', l.inter ? 700 : 400);
+      l.t.setAttribute('x', l.top ? l.n.x : l.n.x + 8 * u);
+      l.t.setAttribute('y', l.top ? l.n.y - 9 * u : l.n.y + 4 * u);
+      l.t.setAttribute('text-anchor', l.top ? 'middle' : 'start');
+    }
+  });
+}
+function isOn(name) { return name === sel || name === from || name === to; }
+function zoomAt(px, py, f) {
+  const k = Math.max(view.min, Math.min(view.fit * 14, view.k * f)); f = k / view.k;
+  view.x = px - (px - view.x) * f; view.y = py - (py - view.y) * f; view.k = k; apply();
+}
+function focus(name, minZ) {
+  const n = nodes[name], w = svg.clientWidth, h = svg.clientHeight;
+  view.k = Math.max(view.k, view.fit * (minZ || 3));
+  view.x = w / 2 - n.x * view.k; view.y = h * .26 - n.y * view.k; apply();
+}
+const ptrs = new Map(); let gesture = null, moved = 0;
+svg.addEventListener('pointerdown', e => {
+  svg.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.offsetX, e.offsetY]);
+  if (ptrs.size === 1) moved = 0; gesture = null;
+});
+svg.addEventListener('pointermove', e => {
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  const nx = e.offsetX, ny = e.offsetY;
+  if (ptrs.size === 1) {
+    moved += Math.hypot(nx - p[0], ny - p[1]);
+    view.x += nx - p[0]; view.y += ny - p[1]; ptrs.set(e.pointerId, [nx, ny]); apply();
+  } else if (ptrs.size === 2) {
+    ptrs.set(e.pointerId, [nx, ny]); moved = 99;
+    const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+    if (gesture) { view.x += mx - gesture.mx; view.y += my - gesture.my; zoomAt(mx, my, d / gesture.d); }
+    gesture = { d, mx, my };
+  }
+});
+function endPtr(e) {
+  const single = ptrs.size === 1; ptrs.delete(e.pointerId); gesture = null;
+  if (e.type === 'pointerup' && single && moved < 8) tapAt(e.offsetX, e.offsetY);
+}
+svg.addEventListener('pointerup', endPtr);
+svg.addEventListener('pointercancel', endPtr);
+svg.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.offsetX, e.offsetY, e.deltaY < 0 ? 1.15 : .87); }, { passive: false });
+function tapAt(px, py) {
+  const wx = (px - view.x) / view.k, wy = (py - view.y) / view.k; let best = null, bd = 24 / view.k;
+  for (const n of Object.values(nodes)) { const d = Math.hypot(n.x - wx, n.y - wy); if (d < bd) { bd = d; best = n; } }
+  if (best) openStation(best.name); else closeSheet();
+}
+$('#zin').onclick = () => zoomAt(svg.clientWidth / 2, svg.clientHeight / 2, 1.5);
+$('#zout').onclick = () => zoomAt(svg.clientWidth / 2, svg.clientHeight / 2, 1 / 1.5);
+addEventListener('resize', () => { if (svg.clientWidth) fit(); });
+
+/* ---------- 車站面板 ---------- */
+const sheet = $('#sheet');
+function chips(name) { return groups[name].map(id => { const l = D.lines[D.stations[id].l]; return `<span class="chip" style="background:${l.c}">${esc(id)}</span>`; }).join(''); }
+function closeSheet() { sel = null; sheet.classList.remove('on'); apply(); }
+function head(title, sub) {
+  return `<div class="sheethead"><h2>${title}${sub ? `<div>${sub}</div>` : ''}</h2><button class="x" data-act="close" aria-label="關閉">✕</button></div>`;
+}
+function stationHtml(name) {
+  let body = '';
+  for (const id of groups[name]) {
+    const st = D.stations[id], L = D.lines[st.l];
+    if (st.l === 'BR') {
+      body += `<div class="dir"><h3><span class="chip" style="background:${L.c}">${esc(L.n)}</span></h3><div class="note">${esc(headway('BR') || '')}。文湖線沒有時刻表,顯示的是平均班距。</div></div>`;
+      continue;
+    }
+    const dirs = nextTrains(id);
+    if (!dirs.length || dirs.every(d => !d.list.length)) {
+      body += `<div class="dir"><h3><span class="chip" style="background:${L.c}">${esc(L.n)}</span></h3><div class="note">今天已沒有班次</div></div>`;
+      continue;
+    }
+    const { m } = clock();
+    for (const d of dirs) {
+      const hn = D.stations[d.head] ? D.stations[d.head].n : d.head;
+      body += `<div class="dir"><h3><span class="chip" style="background:${L.c}">${esc(L.n)}</span>往${esc(hn)}方向</h3><div class="trains">` +
+        (d.list.map(t => {
+          const w = t.m - m, dn = D.stations[t.d] ? D.stations[t.d].n : t.d;
+          return `<span class="train"><b>${w <= 0 ? '進站' : w + ' 分'}</b> <small>${fmt(t.m)} ${esc(dn)}${t.ex ? ' 直達' : ''}</small></span>`;
+        }).join('') || '<span class="note">今天已沒有班次</span>') + `</div></div>`;
+    }
+  }
+  return head(esc(name), chips(name)) +
+    `<div class="note warn">依官方時刻表計算,不含誤點與臨時調度。</div>` + body +
+    `<label class="tog"><input type="checkbox" data-act="holiday" ${holidayOn() ? 'checked' : ''}>今天是國定假日,改用假日班表</label>` +
+    `<div class="acts"><button class="btn" data-act="from">從這站出發</button><button class="btn primary" data-act="to">到這站</button>` +
+    `<button class="btn wide" data-act="bike">看這站附近 YouBike</button></div>`;
+}
+function openStation(name) {
+  sel = name; sheet.innerHTML = stationHtml(name); sheet.scrollTop = 0; sheet.classList.add('on'); apply();
+}
+sheet.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const a = b.dataset.act;
+  if (a === 'close') { if (path && !sel) clearTrip(); closeSheet(); }
+  else if (a === 'from') { from = sel; afterPick(); }
+  else if (a === 'to') { to = sel; afterPick(); }
+  else if (a === 'bike') { const n = nodes[sel], s = D.stations[n.ids[0]]; bikeCenter = { y: s.y, x: s.x, label: sel + '站' }; go('bike'); }
+  else if (a === 'clear') { clearTrip(); closeSheet(); }
+  else if (a === 'swap') { [from, to] = [to, from]; afterPick(); }
+});
+sheet.addEventListener('change', e => {
+  if (e.target.dataset.act !== 'holiday') return;
+  const n = new Date(); store.set('holiday', e.target.checked ? n.getFullYear() + '-' + (n.getMonth() + 1) + '-' + n.getDate() : '');
+  if (sel) openStation(sel);
+});
+
+/* ---------- 還要幾站 ---------- */
+function route(a, b) {
+  const dist = {}, prev = {}, done = new Set(), q = [];
+  for (const id of groups[a]) { dist[id] = 0; q.push(id); }
+  const goal = new Set(groups[b]);
+  while (q.length) {
+    q.sort((x, y) => dist[x] - dist[y]);
+    const u = q.shift(); if (done.has(u)) continue; done.add(u);
+    if (goal.has(u)) {
+      const out = [u]; while (prev[out[0]]) out.unshift(prev[out[0]]);
+      return { ids: out, sec: dist[u] };
+    }
+    for (const [v, w] of adj[u]) {
+      const nd = dist[u] + w;
+      if (dist[v] === undefined || nd < dist[v]) { dist[v] = nd; prev[v] = u; q.push(v); }
+    }
+  }
+  return null;
+}
+function legsOf(r) {
+  const legs = []; let cur = null, t = 0;
+  r.ids.forEach((id, i) => {
+    const s = D.stations[id];
+    if (i) { const w = adj[r.ids[i - 1]].find(e => e[0] === id); t += w ? w[1] : 0; }
+    if (!cur || cur.line !== s.l) { cur = { line: s.l, stops: [] }; legs.push(cur); }
+    cur.stops.push({ id, n: s.n, t });
+  });
+  return legs.filter(l => l.stops.length > 1);
+}
+function afterPick() {
+  renderTrip();
+  if (from && to && from !== to) showRoute();
+  else { if (sel) sheet.classList.remove('on'); sel = null; apply(); }
+}
+function renderTrip() {
+  const t = $('#trip');
+  t.classList.toggle('on', !!(from || to));
+  t.innerHTML = `<span class="pill">起:${esc(from || '點選車站')}</span><span class="pill">迄:${esc(to || '點選車站')}</span>`;
+}
+function clearTrip() {
+  from = to = path = null; renderTrip();
+  document.querySelectorAll('#lines line').forEach(l => l.classList.remove('dim'));
+  dots.forEach(d => d.c.classList.remove('dim'));
+}
+function showRoute() {
+  const r = route(from, to); if (!r) return;
+  path = r; sel = null;
+  const legs = legsOf(r), stops = legs.reduce((a, l) => a + l.stops.length - 1, 0);
+  const on = new Set(r.ids.map(i => D.stations[i].n));
+  const eset = new Set(); r.ids.forEach((id, i) => { if (i) { eset.add(r.ids[i - 1] + '|' + id); eset.add(id + '|' + r.ids[i - 1]); } });
+  document.querySelectorAll('#lines line').forEach(l => l.classList.toggle('dim', !eset.has(l.dataset.e)));
+  dots.forEach(d => d.c.classList.toggle('dim', !on.has(d.n.name)));
+  let h = head(`${esc(from)} → ${esc(to)}`) +
+    `<div class="sum">共 ${stops} 站・約 ${Math.round(r.sec / 60)} 分鐘</div>` +
+    `<div class="note">${legs.length > 1 ? `轉乘 ${legs.length - 1} 次,每次先抓 5 分鐘。` : '不用轉乘。'}時間為估算,不含等車。</div>`;
+  for (const l of legs) {
+    const L = D.lines[l.line], f = l.stops[0], e = l.stops[l.stops.length - 1];
+    h += `<div class="leg" style="border-color:${L.c}"><b>${esc(L.n)}:${esc(f.n)} → ${esc(e.n)}(${l.stops.length - 1} 站)</b><ol>` +
+      l.stops.map(s => `<li><span>${esc(s.n)}</span><span>${Math.round(s.t / 60)} 分</span></li>`).join('') + `</ol></div>`;
+  }
+  h += `<div class="acts"><button class="btn" data-act="swap">對調起迄</button><button class="btn" data-act="clear">清除路線</button></div>`;
+  sheet.innerHTML = h; sheet.scrollTop = 0; sheet.classList.add('on'); fitPath(on); apply();
+}
+// 把路線放進面板上方看得到的區域
+function fitPath(names) {
+  const ns = [...names].map(n => nodes[n]), xs = ns.map(n => n.x), ys = ns.map(n => n.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const w = svg.clientWidth, top = 64, h = Math.max(120, svg.clientHeight * .34 - top);
+  view.k = Math.min(view.fit * 8, (w - 110) / Math.max(1, x1 - x0), h / Math.max(1, y1 - y0));
+  view.x = w / 2 - (x0 + x1) / 2 * view.k; view.y = top + h / 2 - (y0 + y1) / 2 * view.k;
+}
+
+/* ---------- 搜尋與定位 ---------- */
+const q = $('#q'), hits = $('#hits');
+q.addEventListener('input', () => {
+  const s = q.value.trim().replace(/臺/g, '台');
+  if (!s) { hits.hidden = true; return; }
+  const list = Object.keys(groups).filter(n => n.includes(s) || groups[n].some(i => i.toLowerCase() === s.toLowerCase())).slice(0, 8);
+  hits.innerHTML = list.map(n => `<button data-n="${esc(n)}">${chips(n)}<span>${esc(n)}</span></button>`).join('') || '<div class="note" style="padding:10px 14px">找不到這個車站</div>';
+  hits.hidden = false;
+});
+hits.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  hits.hidden = true; q.value = ''; q.blur(); go('map'); focus(b.dataset.n); openStation(b.dataset.n);
+});
+function locate() {
+  return new Promise((ok, no) => {
+    if (!navigator.geolocation) return no(new Error('此裝置不支援定位'));
+    navigator.geolocation.getCurrentPosition(p => ok({ y: p.coords.latitude, x: p.coords.longitude }),
+      () => no(new Error('無法取得位置,請確認已允許定位')), { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+  });
+}
+function meters(a, b) {
+  const k = Math.PI / 180, dy = (a.y - b.y) * 111320, dx = (a.x - b.x) * 111320 * Math.cos(a.y * k);
+  return Math.hypot(dx, dy);
+}
+$('#loc').onclick = async () => {
+  try {
+    const p = await locate(); let best = null, bd = 1e12;
+    for (const s of Object.values(D.stations)) { const d = meters(p, s); if (d < bd) { bd = d; best = s.n; } }
+    focus(best); openStation(best);
+  } catch (e) { alert(e.message); }
+};
+
+/* ---------- YouBike ---------- */
+const YB_URL = 'https://apis.youbike.com.tw/json/station-yb2.json';
+const AREA = { y0: 24.72, y1: 25.32, x0: 120.95, x1: 121.85 }; // 雙北與桃園
+let bikeCache = null, bikeAt = 0, bikeCenter = null, bikeDiff = null;
+async function loadBikes() {
+  if (bikeCache && Date.now() - bikeAt < 60000) return bikeCache;
+  const r = await fetch(YB_URL, { cache: 'no-store' });
+  if (!r.ok) throw new Error('YouBike 資料暫時無法取得');
+  const all = await r.json();
+  bikeCache = all.filter(s => s.status === 1).map(s => ({
+    id: s.station_no, n: s.name_tw, ad: s.address_tw, y: +s.lat, x: +s.lng,
+    bikes: s.available_spaces, empty: s.empty_spaces, e: (s.available_spaces_detail || {}).eyb || 0, at: s.updated_at
+  })).filter(s => s.y > AREA.y0 && s.y < AREA.y1 && s.x > AREA.x0 && s.x < AREA.x1);
+  bikeAt = Date.now(); trackStations(bikeCache); return bikeCache;
+}
+// 記住看過的站點,之後多出來的就標為新站(保留 14 天)
+function trackStations(list) {
+  const known = store.get('ybKnown', null), now = Date.now(), DAY14 = 14 * 864e5;
+  const ids = list.map(s => s.id);
+  const fresh = store.get('ybNew', {});
+  for (const k in fresh) if (now - fresh[k] > DAY14) delete fresh[k];
+  let removed = 0;
+  if (known) {
+    const was = new Set(known), is = new Set(ids);
+    for (const i of ids) if (!was.has(i)) fresh[i] = now;
+    for (const i of known) if (!is.has(i)) removed++;
+  }
+  store.set('ybKnown', ids); store.set('ybNew', fresh);
+  bikeDiff = { fresh, removed, first: !known };
+}
+function bikeRow(s, c) {
+  const isNew = bikeDiff && bikeDiff.fresh[s.id];
+  return `<div class="bike"><div><div class="nm">${esc(s.n)}${isNew ? '<span class="new">新站</span>' : ''}</div><div class="note" style="margin:0">${Math.round(meters(c, s))} 公尺・${esc(s.ad)}</div></div>` +
+    `<div class="ct"><b>${s.bikes}</b>可借${s.e ? `(電輔 ${s.e})` : ''}・空位 ${s.empty}</div></div>`;
+}
+async function renderBikes() {
+  const pg = $('#bikepage');
+  pg.innerHTML = `<h2>附近 YouBike</h2><div class="acts"><button class="btn primary wide" id="bikeme">用我現在的位置查</button></div><div id="bikeout"><p class="note">${bikeCenter ? '載入中…' : '按上面的按鈕,或從路線圖點車站查詢。'}</p></div>`;
+  $('#bikeme').onclick = async () => {
+    $('#bikeout').innerHTML = '<p class="note">定位中…</p>';
+    try { const p = await locate(); bikeCenter = { ...p, label: '你的位置' }; showBikes(); }
+    catch (e) { $('#bikeout').innerHTML = `<p class="note warn">${esc(e.message)}</p>`; }
+  };
+  if (bikeCenter) showBikes();
+}
+async function showBikes() {
+  const out = $('#bikeout'), c = bikeCenter;
+  out.innerHTML = '<p class="note">載入中…</p>';
+  try {
+    const list = await loadBikes();
+    const near = list.map(s => ({ s, d: meters(c, s) })).filter(o => o.d < 1000).sort((a, b) => a.d - b.d).slice(0, 12);
+    const newCount = Object.keys(bikeDiff.fresh).length;
+    let h = '';
+    if (newCount || bikeDiff.removed) h += `<div class="alert">站點有更新:最近 14 天新增 ${newCount} 站${bikeDiff.removed ? `,這次少了 ${bikeDiff.removed} 站` : ''}。</div>`;
+    h += `<p class="note">${esc(c.label)}方圓 1 公里・${esc((list[0].at || '').slice(11, 16))} 更新</p>`;
+    h += near.map(o => bikeRow(o.s, c)).join('') || '<p class="note">1 公里內沒有 YouBike 站。</p>';
+    h += `<button class="btn wide" id="bikere" style="margin-top:12px">重新整理</button><p class="foot">資料來源:YouBike 微笑單車。</p>`;
+    out.innerHTML = h;
+    $('#bikere').onclick = () => { bikeAt = 0; showBikes(); };
+  } catch (e) { out.innerHTML = `<p class="note warn">${esc(e.message || 'YouBike 資料暫時無法取得')}</p>`; }
+}
+
+/* ---------- 導覽 ---------- */
+function go(v) {
+  document.querySelectorAll('.view').forEach(s => s.classList.toggle('on', s.id === 'v-' + v));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  if (v === 'bike') renderBikes();
+  if (v === 'map') requestAnimationFrame(() => { if (!view.fit) fit(); });
+}
+document.querySelector('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) go(b.dataset.v); });
+setInterval(() => { if (sel && !document.hidden) { const y = sheet.scrollTop; sheet.innerHTML = stationHtml(sel); sheet.scrollTop = y; } }, 30000);
+
+fetch('data/transit.json').then(r => r.json()).then(d => { D = d; prepare(); drawMap(); })
+  .catch(() => { $('#v-map').innerHTML = '<p class="note" style="padding:16px">資料載入失敗,請確認網路後重新開啟。</p>'; });
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
