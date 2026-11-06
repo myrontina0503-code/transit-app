@@ -71,6 +71,23 @@ nav button.on{color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
 .link b{display:block;font-size:17px}
 .link span{color:var(--sub);font-size:14px}
 .foot{color:var(--sub);font-size:12px;margin-top:18px}
+#inv{max-width:420px;margin:0 auto}
+.seg{display:flex;gap:6px;margin:0 0 10px;overflow-x:auto}
+.seg button{flex:1;min-height:40px;white-space:nowrap;border:1px solid var(--line);background:var(--card);border-radius:9px;padding:6px 10px;font-size:14px;font-weight:600;color:var(--sub)}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+@media (prefers-color-scheme:dark){.seg button.on{color:#07211e}}
+#num{font-size:38px;font-weight:700;letter-spacing:.14em;text-align:center;min-height:58px;font-variant-numeric:tabular-nums;padding-top:4px}
+#res{min-height:92px;border-radius:12px;padding:12px 14px;margin:6px 0 12px;background:var(--card);border:1px solid var(--line);text-align:center}
+#res.win{border:2px solid var(--accent)}
+#res.maybe{border:2px solid var(--warn)}
+#res b{display:block;font-size:20px}
+#res .note{margin:4px 0 0}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pad button{height:58px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:24px;font-weight:600}
+.pad button.fn{font-size:16px;color:var(--sub)}
+details{margin-top:14px;font-size:14px}
+details summary{font-weight:600;min-height:32px}
+details div{padding:3px 0;font-variant-numeric:tabular-nums}
 label.tog{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);padding:6px 0}
 label.tog input{width:20px;height:20px}
 </style>
@@ -93,6 +110,7 @@ label.tog input{width:20px;height:20px}
       <div id="sheet" role="dialog" aria-label="車站資訊"></div>
     </section>
     <section id="v-bike" class="view"><div class="page" id="bikepage"></div></section>
+    <section id="v-inv" class="view"><div class="page"><div id="inv"></div></div></section>
     <section id="v-bus" class="view"><div class="page">
       <h2>公車即時動態</h2>
       <p class="note">點選後開啟官方網頁查詢。</p>
@@ -104,6 +122,7 @@ label.tog input{width:20px;height:20px}
     <button data-v="map" class="on">路線圖</button>
     <button data-v="bike">YouBike</button>
     <button data-v="bus">公車</button>
+    <button data-v="inv">發票</button>
   </nav>
 </div>
 <script>
@@ -516,11 +535,68 @@ async function showBikes() {
   } catch (e) { out.innerHTML = `<p class="note warn">${esc(e.message || 'YouBike 資料暫時無法取得')}</p>`; }
 }
 
+/* ---------- 發票對獎 ---------- */
+const PRIZE = [[8, '頭獎', '20 萬元'], [7, '二獎', '4 萬元'], [6, '三獎', '1 萬元'], [5, '四獎', '4 千元'], [4, '五獎', '1 千元'], [3, '六獎', '2 百元']];
+let INV = null, invP = 0, invMode = 3, invNum = '';
+function checkFull(p, n) {
+  if (n === p.sp) return { lv: 'win', t: '特別獎', a: '1,000 萬元' };
+  if (n === p.gr) return { lv: 'win', t: '特獎', a: '200 萬元' };
+  for (const [len, t, a] of PRIZE) if (p.fi.some(f => f.slice(-len) === n.slice(-len))) return { lv: 'win', t, a };
+  return { lv: 'no' };
+}
+function checkTail(p, n) {
+  const hit = p.fi.find(f => f.slice(-3) === n);
+  const big = [p.sp, p.gr].some(f => f.slice(-3) === n);
+  if (hit) return { lv: 'win', t: '至少中六獎 200 元', a: `對中頭獎 ${hit} 的末三碼,輸入完整 8 碼看有沒有更大獎。`, more: true };
+  if (big) return { lv: 'maybe', t: '末三碼和特別獎或特獎相同', a: '這兩個獎要 8 碼全中,請輸入完整號碼。', more: true };
+  return { lv: 'no' };
+}
+function invResult() {
+  const box = $('#res'), p = INV.periods[invP];
+  box.className = '';
+  if (invNum.length < invMode) { box.innerHTML = `<div class="note">輸入發票${invMode === 3 ? '末三碼' : '完整 8 碼'}</div>`; return; }
+  const r = invMode === 3 ? checkTail(p, invNum) : checkFull(p, invNum);
+  if (r.lv === 'no') { box.innerHTML = '<b>沒中</b><div class="note">直接輸入下一張</div>'; return; }
+  box.className = r.lv === 'win' ? 'win' : 'maybe';
+  box.innerHTML = invMode === 3 ? `<b>${esc(r.t)}</b><div class="note">${esc(r.a)}</div><button class="btn wide" id="tofull" style="margin-top:8px">輸入完整 8 碼</button>` :
+    `<b>中${esc(r.t)}!${esc(r.a)}</b><div class="note">請保留發票,在領獎期間兌領。</div>`;
+  const b = $('#tofull'); if (b) b.onclick = () => { invMode = 8; invNum = ''; renderInvoice(); };
+}
+function invKey(k) {
+  if (k === 'del') invNum = invNum.slice(0, -1);
+  else if (k === 'clr') invNum = '';
+  else { if (invNum.length >= invMode) invNum = ''; invNum += k; }
+  $('#num').textContent = invNum || ' ';
+  invResult();
+}
+function claimText(p) { const f = s => s.replace(/^(\d+)-0?(\d+)-0?(\d+)$/, (m, y, a, b) => `${y - 1911}/${a}/${b}`); const over = new Date(p.to + 'T23:59:59') < new Date(); return over ? `領獎期限已過(${f(p.to)} 截止)` : `領獎期間 ${f(p.from)}–${f(p.to)}`; }
+async function renderInvoice() {
+  const box = $('#inv');
+  if (!INV) {
+    box.innerHTML = '<p class="note">載入中…</p>';
+    try { const r = await fetch('data/invoice.json', { cache: 'no-cache' }); if (!r.ok) throw 0; INV = await r.json(); }
+    catch (e) { box.innerHTML = '<p class="note warn">中獎號碼暫時無法載入,請確認網路後再試。</p>'; return; }
+  }
+  const p = INV.periods[invP];
+  box.innerHTML = `<h2>發票對獎</h2><div class="seg" id="per">${INV.periods.map((x, i) => `<button data-i="${i}" class="${i === invP ? 'on' : ''}">${esc(x.t.replace(/^\d+年\s*/, ''))}</button>`).join('')}</div>` +
+    `<p class="note">${esc(p.t)}・${esc(claimText(p))}</p>` +
+    `<div class="seg" id="mode"><button data-m="3" class="${invMode === 3 ? 'on' : ''}">末三碼快速對</button><button data-m="8" class="${invMode === 8 ? 'on' : ''}">完整 8 碼</button></div>` +
+    `<div id="num">${invNum || ' '}</div><div id="res"></div>` +
+    `<div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button class="fn" data-k="clr">清除</button><button data-k="0">0</button><button class="fn" data-k="del" aria-label="刪除">⌫</button></div>` +
+    `<details><summary>本期中獎號碼</summary><div>特別獎 ${esc(p.sp)}</div><div>特獎 ${esc(p.gr)}</div><div>頭獎 ${p.fi.map(esc).join('、')}</div></details>` +
+    `<p class="foot">資料來源:財政部。不含雲端發票專屬獎,雲端發票請以財政部通知為準。實際兌獎以官方公告為準。</p>`;
+  $('#per').onclick = e => { const b = e.target.closest('button'); if (b) { invP = +b.dataset.i; invNum = ''; renderInvoice(); } };
+  $('#mode').onclick = e => { const b = e.target.closest('button'); if (b) { invMode = +b.dataset.m; invNum = ''; renderInvoice(); } };
+  box.querySelector('.pad').onclick = e => { const b = e.target.closest('button'); if (b) invKey(b.dataset.k); };
+  invResult();
+}
+
 /* ---------- 導覽 ---------- */
 function go(v) {
   document.querySelectorAll('.view').forEach(s => s.classList.toggle('on', s.id === 'v-' + v));
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
   if (v === 'bike') renderBikes();
+  if (v === 'inv') renderInvoice();
   if (v === 'map') requestAnimationFrame(() => { if (!view.fit) fit(); });
 }
 document.querySelector('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) go(b.dataset.v); });
