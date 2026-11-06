@@ -5,7 +5,7 @@ import datetime, json, os, re, urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.environ.get('INVOICE_OUT') or os.path.join(HERE, '..', 'app', 'data', 'invoice.json')
 RSS = 'https://invoice.etax.nat.gov.tw/invoice.xml'
-KEEP = 3
+KEEP = 6
 
 def claim(year, end_month):
     # 開獎月的次月 6 日起,領三個月

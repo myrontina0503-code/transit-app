@@ -71,23 +71,28 @@ nav button.on{color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
 .link b{display:block;font-size:17px}
 .link span{color:var(--sub);font-size:14px}
 .foot{color:var(--sub);font-size:12px;margin-top:18px}
-#inv{max-width:420px;margin:0 auto}
-.seg{display:flex;gap:6px;margin:0 0 10px;overflow-x:auto}
-.seg button{flex:1;min-height:40px;white-space:nowrap;border:1px solid var(--line);background:var(--card);border-radius:9px;padding:6px 10px;font-size:14px;font-weight:600;color:var(--sub)}
-.seg button.on{background:var(--accent);border-color:var(--accent);color:#fff}
-@media (prefers-color-scheme:dark){.seg button.on{color:#07211e}}
-#num{font-size:38px;font-weight:700;letter-spacing:.14em;text-align:center;min-height:58px;font-variant-numeric:tabular-nums;padding-top:4px}
-#res{min-height:92px;border-radius:12px;padding:12px 14px;margin:6px 0 12px;background:var(--card);border:1px solid var(--line);text-align:center}
-#res.win{border:2px solid var(--accent)}
-#res.maybe{border:2px solid var(--warn)}
-#res b{display:block;font-size:20px}
-#res .note{margin:4px 0 0}
-.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.pad button{height:58px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:24px;font-weight:600}
-.pad button.fn{font-size:16px;color:var(--sub)}
-details{margin-top:14px;font-size:14px}
-details summary{font-weight:600;min-height:32px}
-details div{padding:3px 0;font-variant-numeric:tabular-nums}
+#inv{max-width:520px;margin:0 auto}
+.period{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.period.now{border:2px solid var(--accent)}
+.period h3{margin:0;font-size:17px}
+.period .tag{background:var(--accent);color:#fff;font-size:12px;border-radius:5px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+@media (prefers-color-scheme:dark){.period .tag{color:#07211e}}
+.prize{display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding:8px 0}
+.prize small{display:block;color:var(--sub);font-size:12px}
+.prize .nums{text-align:right;font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:.03em;color:var(--sub)}
+.prize .nums b{color:var(--ink);font-size:23px}
+#bikepage{padding:0;max-width:none;display:flex;flex-direction:column;overflow:hidden}
+#bmapwrap{position:relative;height:56%;flex:none;isolation:isolate}
+#bmap{position:absolute;inset:0;background:var(--line)}
+#bmapwrap .mapbtns{z-index:1000;top:10px;right:10px}
+#bikeout{flex:1;overflow:auto;padding:8px 16px 20px;min-height:0}
+.bike{cursor:pointer}
+.bk{width:34px;height:34px;border-radius:50%;background:#0b7f73;color:#fff;border:2px solid #fff;box-shadow:0 1px 5px #0006;font:700 14px/30px -apple-system,sans-serif;text-align:center}
+.bk.low{background:#c77700}
+.bk.none{background:#7c8790}
+.me{width:18px;height:18px;border-radius:50%;background:#1a73e8;border:3px solid #fff;box-shadow:0 0 0 2px #1a73e866}
+.pop b{display:block;font-size:15px}
+.pop a{display:inline-block;margin-top:6px;font-weight:600}
 label.tog{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);padding:6px 0}
 label.tog input{width:20px;height:20px}
 </style>
@@ -109,7 +114,10 @@ label.tog input{width:20px;height:20px}
       </div>
       <div id="sheet" role="dialog" aria-label="車站資訊"></div>
     </section>
-    <section id="v-bike" class="view"><div class="page" id="bikepage"></div></section>
+    <section id="v-bike" class="view"><div class="page" id="bikepage">
+      <div id="bmapwrap"><div id="bmap"></div><div class="mapbtns"><button id="bikeme" aria-label="我的位置">◎</button><button id="bikere" aria-label="重新整理">↻</button></div></div>
+      <div id="bikeout"><p class="note">載入中…</p></div>
+    </div></section>
     <section id="v-inv" class="view"><div class="page"><div id="inv"></div></div></section>
     <section id="v-bus" class="view"><div class="page">
       <h2>公車即時動態</h2>
@@ -503,73 +511,91 @@ function trackStations(list) {
   store.set('ybKnown', ids); store.set('ybNew', fresh);
   bikeDiff = { fresh, removed, first: !known };
 }
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  return new Promise((ok, no) => {
+    const css = document.createElement('link'); css.rel = 'stylesheet';
+    css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
+    const js = document.createElement('script'); js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    js.onload = ok; js.onerror = () => no(new Error('地圖載入失敗,請確認網路')); document.head.appendChild(js);
+  });
+}
+let bmap = null, bikeLayer = null, meMarker = null, markers = {};
 function bikeRow(s, c) {
   const isNew = bikeDiff && bikeDiff.fresh[s.id];
-  return `<div class="bike"><div><div class="nm">${esc(s.n)}${isNew ? '<span class="new">新站</span>' : ''}</div><div class="note" style="margin:0">${Math.round(meters(c, s))} 公尺・${esc(s.ad)}</div></div>` +
+  return `<div class="bike" data-id="${esc(s.id)}"><div><div class="nm">${esc(s.n)}${isNew ? '<span class="new">新站</span>' : ''}</div><div class="note" style="margin:0">${Math.round(meters(c, s))} 公尺・${esc(s.ad)}</div></div>` +
     `<div class="ct"><b>${s.bikes}</b>可借${s.e ? `(電輔 ${s.e})` : ''}・空位 ${s.empty}</div></div>`;
 }
-async function renderBikes() {
-  const pg = $('#bikepage');
-  pg.innerHTML = `<h2>附近 YouBike</h2><div class="acts"><button class="btn primary wide" id="bikeme">用我現在的位置查</button></div><div id="bikeout"><p class="note">${bikeCenter ? '載入中…' : '按上面的按鈕,或從路線圖點車站查詢。'}</p></div>`;
-  $('#bikeme').onclick = async () => {
-    $('#bikeout').innerHTML = '<p class="note">定位中…</p>';
-    try { const p = await locate(); bikeCenter = { ...p, label: '你的位置' }; showBikes(); }
-    catch (e) { $('#bikeout').innerHTML = `<p class="note warn">${esc(e.message)}</p>`; }
-  };
-  if (bikeCenter) showBikes();
+function popupHtml(s) {
+  return `<div class="pop"><b>${esc(s.n)}</b>可借 ${s.bikes}${s.e ? `(電輔 ${s.e})` : ''}・空位 ${s.empty}<br>` +
+    `<a href="https://www.google.com/maps/dir/?api=1&destination=${s.y},${s.x}&travelmode=walking" target="_blank" rel="noopener">走路導航</a></div>`;
 }
-async function showBikes() {
-  const out = $('#bikeout'), c = bikeCenter;
-  out.innerHTML = '<p class="note">載入中…</p>';
+function drawBikes() {
+  if (!bmap || !bikeCache) return;
+  const c0 = bmap.getCenter(), c = { y: c0.lat, x: c0.lng }, out = $('#bikeout');
+  bikeLayer.clearLayers(); markers = {};
+  if (bmap.getZoom() < 14) { out.innerHTML = '<p class="note">放大地圖就會看到 YouBike 站點。</p>'; return; }
+  const b = bmap.getBounds();
+  const near = bikeCache.filter(s => b.contains([s.y, s.x])).map(s => ({ s, d: meters(c, s) })).sort((p, q) => p.d - q.d).slice(0, 80);
+  for (const { s } of near) {
+    const cls = s.bikes === 0 ? 'none' : s.bikes < 4 ? 'low' : '';
+    const m = L.marker([s.y, s.x], { icon: L.divIcon({ className: '', html: `<div class="bk ${cls}">${s.bikes}</div>`, iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -14] }) });
+    m.bindPopup(popupHtml(s)); bikeLayer.addLayer(m); markers[s.id] = m;
+  }
+  const newCount = Object.keys(bikeDiff.fresh).length;
+  let h = '';
+  if (newCount || bikeDiff.removed) h += `<div class="alert">站點有更新:最近 14 天新增 ${newCount} 站${bikeDiff.removed ? `,這次少了 ${bikeDiff.removed} 站` : ''}。</div>`;
+  h += `<p class="note">距離從地圖中央算・${esc((bikeCache[0].at || '').slice(11, 16))} 更新・點站名可在地圖上看位置</p>`;
+  h += near.slice(0, 20).map(o => bikeRow(o.s, c)).join('') || '<p class="note">這個範圍沒有 YouBike 站,移動地圖看看。</p>';
+  out.innerHTML = h + '<p class="foot">資料來源:YouBike 微笑單車。地圖:OpenStreetMap。</p>';
+}
+async function renderBikes() {
+  const out = $('#bikeout');
   try {
-    const list = await loadBikes();
-    const near = list.map(s => ({ s, d: meters(c, s) })).filter(o => o.d < 1000).sort((a, b) => a.d - b.d).slice(0, 12);
-    const newCount = Object.keys(bikeDiff.fresh).length;
-    let h = '';
-    if (newCount || bikeDiff.removed) h += `<div class="alert">站點有更新:最近 14 天新增 ${newCount} 站${bikeDiff.removed ? `,這次少了 ${bikeDiff.removed} 站` : ''}。</div>`;
-    h += `<p class="note">${esc(c.label)}方圓 1 公里・${esc((list[0].at || '').slice(11, 16))} 更新</p>`;
-    h += near.map(o => bikeRow(o.s, c)).join('') || '<p class="note">1 公里內沒有 YouBike 站。</p>';
-    h += `<button class="btn wide" id="bikere" style="margin-top:12px">重新整理</button><p class="foot">資料來源:YouBike 微笑單車。</p>`;
-    out.innerHTML = h;
-    $('#bikere').onclick = () => { bikeAt = 0; showBikes(); };
+    await loadLeaflet();
+    if (!bmap) {
+      bmap = L.map('bmap', { zoomControl: false }).setView([25.0478, 121.517], 16);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(bmap);
+      bikeLayer = L.layerGroup().addTo(bmap);
+      bmap.on('moveend', drawBikes);
+    }
+    bmap.invalidateSize();
+    if (bikeCenter) { bmap.setView([bikeCenter.y, bikeCenter.x], 16); bikeCenter = null; }
+    await loadBikes(); drawBikes();
   } catch (e) { out.innerHTML = `<p class="note warn">${esc(e.message || 'YouBike 資料暫時無法取得')}</p>`; }
 }
+$('#bikeme').onclick = async () => {
+  try {
+    const p = await locate();
+    if (!bmap) return;
+    if (meMarker) meMarker.remove();
+    meMarker = L.marker([p.y, p.x], { interactive: false, icon: L.divIcon({ className: '', html: '<div class="me"></div>', iconSize: [18, 18] }) }).addTo(bmap);
+    bmap.setView([p.y, p.x], 16);
+  } catch (e) { alert(e.message); }
+};
+$('#bikere').onclick = async () => {
+  bikeAt = 0;
+  try { await loadBikes(); drawBikes(); } catch (e) { alert(e.message || 'YouBike 資料暫時無法取得'); }
+};
+$('#bikeout').addEventListener('click', e => {
+  const r = e.target.closest('.bike'), m = r && markers[r.dataset.id];
+  if (m) m.openPopup();
+});
 
-/* ---------- 發票對獎 ---------- */
-const PRIZE = [[8, '頭獎', '20 萬元'], [7, '二獎', '4 萬元'], [6, '三獎', '1 萬元'], [5, '四獎', '4 千元'], [4, '五獎', '1 千元'], [3, '六獎', '2 百元']];
-let INV = null, invP = 0, invMode = 3, invNum = '';
-function checkFull(p, n) {
-  if (n === p.sp) return { lv: 'win', t: '特別獎', a: '1,000 萬元' };
-  if (n === p.gr) return { lv: 'win', t: '特獎', a: '200 萬元' };
-  for (const [len, t, a] of PRIZE) if (p.fi.some(f => f.slice(-len) === n.slice(-len))) return { lv: 'win', t, a };
-  return { lv: 'no' };
+/* ---------- 發票中獎號碼 ---------- */
+let INV = null;
+function claimText(p) {
+  const f = s => s.replace(/^(\d+)-0?(\d+)-0?(\d+)$/, (m, y, a, b) => `${y - 1911}/${a}/${b}`);
+  const over = new Date(p.to + 'T23:59:59') < new Date();
+  return over ? `領獎期限已過(${f(p.to)} 截止)` : `領獎期間 ${f(p.from)}–${f(p.to)}`;
 }
-function checkTail(p, n) {
-  const hit = p.fi.find(f => f.slice(-3) === n);
-  const big = [p.sp, p.gr].some(f => f.slice(-3) === n);
-  if (hit) return { lv: 'win', t: '至少中六獎 200 元', a: `對中頭獎 ${hit} 的末三碼,輸入完整 8 碼看有沒有更大獎。`, more: true };
-  if (big) return { lv: 'maybe', t: '末三碼和特別獎或特獎相同', a: '這兩個獎要 8 碼全中,請輸入完整號碼。', more: true };
-  return { lv: 'no' };
+function num(n) { return `<div>${esc(n.slice(0, 5))}<b>${esc(n.slice(5))}</b></div>`; }
+function periodHtml(p, i) {
+  return `<div class="period${i ? '' : ' now'}"><h3>${esc(p.t)}${i ? '' : '<span class="tag">本期</span>'}</h3><div class="note">${esc(claimText(p))}</div>` +
+    `<div class="prize"><div>特別獎<small>8 碼全中 1,000 萬</small></div><div class="nums"><b>${esc(p.sp)}</b></div></div>` +
+    `<div class="prize"><div>特獎<small>8 碼全中 200 萬</small></div><div class="nums"><b>${esc(p.gr)}</b></div></div>` +
+    `<div class="prize"><div>頭獎<small>8 碼全中 20 萬<br>末 3 碼相同 200 元起</small></div><div class="nums">${p.fi.map(num).join('')}</div></div></div>`;
 }
-function invResult() {
-  const box = $('#res'), p = INV.periods[invP];
-  box.className = '';
-  if (invNum.length < invMode) { box.innerHTML = `<div class="note">輸入發票${invMode === 3 ? '末三碼' : '完整 8 碼'}</div>`; return; }
-  const r = invMode === 3 ? checkTail(p, invNum) : checkFull(p, invNum);
-  if (r.lv === 'no') { box.innerHTML = '<b>沒中</b><div class="note">直接輸入下一張</div>'; return; }
-  box.className = r.lv === 'win' ? 'win' : 'maybe';
-  box.innerHTML = invMode === 3 ? `<b>${esc(r.t)}</b><div class="note">${esc(r.a)}</div><button class="btn wide" id="tofull" style="margin-top:8px">輸入完整 8 碼</button>` :
-    `<b>中${esc(r.t)}!${esc(r.a)}</b><div class="note">請保留發票,在領獎期間兌領。</div>`;
-  const b = $('#tofull'); if (b) b.onclick = () => { invMode = 8; invNum = ''; renderInvoice(); };
-}
-function invKey(k) {
-  if (k === 'del') invNum = invNum.slice(0, -1);
-  else if (k === 'clr') invNum = '';
-  else { if (invNum.length >= invMode) invNum = ''; invNum += k; }
-  $('#num').textContent = invNum || ' ';
-  invResult();
-}
-function claimText(p) { const f = s => s.replace(/^(\d+)-0?(\d+)-0?(\d+)$/, (m, y, a, b) => `${y - 1911}/${a}/${b}`); const over = new Date(p.to + 'T23:59:59') < new Date(); return over ? `領獎期限已過(${f(p.to)} 截止)` : `領獎期間 ${f(p.from)}–${f(p.to)}`; }
 async function renderInvoice() {
   const box = $('#inv');
   if (!INV) {
@@ -577,18 +603,8 @@ async function renderInvoice() {
     try { const r = await fetch('data/invoice.json', { cache: 'no-cache' }); if (!r.ok) throw 0; INV = await r.json(); }
     catch (e) { box.innerHTML = '<p class="note warn">中獎號碼暫時無法載入,請確認網路後再試。</p>'; return; }
   }
-  const p = INV.periods[invP];
-  box.innerHTML = `<h2>發票對獎</h2><div class="seg" id="per">${INV.periods.map((x, i) => `<button data-i="${i}" class="${i === invP ? 'on' : ''}">${esc(x.t.replace(/^\d+年\s*/, ''))}</button>`).join('')}</div>` +
-    `<p class="note">${esc(p.t)}・${esc(claimText(p))}</p>` +
-    `<div class="seg" id="mode"><button data-m="3" class="${invMode === 3 ? 'on' : ''}">末三碼快速對</button><button data-m="8" class="${invMode === 8 ? 'on' : ''}">完整 8 碼</button></div>` +
-    `<div id="num">${invNum || ' '}</div><div id="res"></div>` +
-    `<div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button class="fn" data-k="clr">清除</button><button data-k="0">0</button><button class="fn" data-k="del" aria-label="刪除">⌫</button></div>` +
-    `<details><summary>本期中獎號碼</summary><div>特別獎 ${esc(p.sp)}</div><div>特獎 ${esc(p.gr)}</div><div>頭獎 ${p.fi.map(esc).join('、')}</div></details>` +
-    `<p class="foot">資料來源:財政部。不含雲端發票專屬獎,雲端發票請以財政部通知為準。實際兌獎以官方公告為準。</p>`;
-  $('#per').onclick = e => { const b = e.target.closest('button'); if (b) { invP = +b.dataset.i; invNum = ''; renderInvoice(); } };
-  $('#mode').onclick = e => { const b = e.target.closest('button'); if (b) { invMode = +b.dataset.m; invNum = ''; renderInvoice(); } };
-  box.querySelector('.pad').onclick = e => { const b = e.target.closest('button'); if (b) invKey(b.dataset.k); };
-  invResult();
+  box.innerHTML = `<h2>發票中獎號碼</h2>` + INV.periods.map(periodHtml).join('') +
+    `<p class="foot">頭獎末 7 碼相同 4 萬、末 6 碼 1 萬、末 5 碼 4 千、末 4 碼 1 千、末 3 碼 2 百。資料來源:財政部,實際兌獎以官方公告為準。</p>`;
 }
 
 /* ---------- 導覽 ---------- */

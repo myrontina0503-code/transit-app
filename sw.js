@@ -1,5 +1,5 @@
 // 離線快取:自己的檔案用「網路優先」,YouBike 即時資料不快取
-const CACHE = 'transit-20261106b';
+const CACHE = 'transit-20261106c';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png', './data/transit.json', './data/invoice.json'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
